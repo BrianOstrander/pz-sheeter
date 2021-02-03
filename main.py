@@ -16,8 +16,6 @@ RESOURCES_XML_PATH = RESOURCES_PATH.joinpath('Tiles2x.xml')
 
 import click
 
-
-
 @click.group()
 def cli():
   pass
@@ -27,7 +25,7 @@ def generic():
     click.echo('todo')
 
 @cli.command(name='unpack')
-@click.argument('resources_xml_path', type=click.Path(), default=str(RESOURCES_XML_PATH))
+@click.argument('resources_xml_path', type=click.Path(), default=str(RESOURCES_XML_PATH), description="XML to extract from.")
 def unpack(resources_xml_path):
     """Unpacks raw texture sheet data into their original format."""
     print(resources_xml_path)
