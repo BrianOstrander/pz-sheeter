@@ -1,0 +1,21 @@
+
+name: test
+on:
+  pull_request:
+    branches: [dev, main]
+  # push:
+  #   branches: [dev, main]
+jobs:
+  build_and_test:
+    name: "Build and Test"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.6.12
+          architecture: x64
+      - name: Install Dep
+        run: |
+          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
+          poetry install
