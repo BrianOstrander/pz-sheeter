@@ -14,14 +14,29 @@ RESOURCES_XML_PATH = RESOURCES_PATH.joinpath('Tiles2x.xml')
 # {'property': 'frameEntries'}
 # {'property': 'numFrameEntries'}
 
-def main():
-    print(RESOURCES_XML_PATH)
-    with open(RESOURCES_XML_PATH, 'r') as reader:
+import click
+
+
+
+@click.group()
+def cli():
+  pass
+
+@cli.command(name='version')
+def generic():
+    click.echo('todo')
+
+@cli.command(name='unpack')
+@click.argument('resources_xml_path', type=click.Path(), default=str(RESOURCES_XML_PATH))
+def unpack(resources_xml_path):
+    """Unpacks raw texture sheet data into their original format."""
+    print(resources_xml_path)
+    with open(resources_xml_path, 'r') as reader:  
         root = xmltodict.parse(reader.read())['java']['object']['void'][0]['array']['void']
         for child in root:
             process(child)
             break
-
+    
     # tree = ET.parse(RESOURCES_XML_PATH)
     # root = tree.getroot()
     #
@@ -42,4 +57,4 @@ def process(root):
         print(child['@property'])
 
 if __name__ == '__main__':
-    main()
+    cli()
