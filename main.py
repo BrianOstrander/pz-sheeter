@@ -21,8 +21,17 @@ EXPORTS_WARNING_PATH = EXPORTS_PATH.joinpath('__DO NOT SAVE HERE__.txt')
 # {'property': 'frameEntries'}
 # {'property': 'numFrameEntries'}
 
-def main():
+@click.group()
+def cli():
+    pass
 
+@cli.command(name='version')
+def generic():
+    click.echo('todo')
+
+@cli.command(name='stitch')
+@click.argument('resources_xml_path', type=click.Path(), default=str(RESOURCES_XML_PATH), description='XML to extract from.')
+def stitch(resources_xml_path):
     if EXPORTS_PATH.exists():
         delete_directory(EXPORTS_PATH)
 
@@ -35,7 +44,7 @@ def main():
 
     sheets = {}
 
-    with open(RESOURCES_XML_PATH, 'r') as reader:
+    with open(resources_xml_path, 'r') as reader:
         root = xmltodict.parse(reader.read())['java']['object']['void'][0]['array']['void']
         for child in root:
             consume_sheet(child, sheets)
@@ -172,4 +181,4 @@ def stitch_asset(source_path, export_path, count, cell_height):
     # print('source: {}, export: {}, count: {}, cell_height: {}'.format(source_path, export_path, count, cell_height))
 
 if __name__ == '__main__':
-    main()
+    cli()
