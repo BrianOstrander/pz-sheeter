@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import xmltodict
 from PIL import Image
+import click
 from math import isclose, ceil
 from sheet_entry import SheetEntry
 
