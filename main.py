@@ -6,8 +6,8 @@ from math import isclose, ceil
 from sheet_entry import SheetEntry
 
 PROJECT_PATH = Path(sys.path[0])
-RESOURCES_PATH = PROJECT_PATH.joinpath('resources/Tiles2x')
-RESOURCES_XML_PATH = RESOURCES_PATH.joinpath('Tiles2x.xml')
+RESOURCES_PATH = PROJECT_PATH.joinpath('resources')
+RESOURCES_PACKS_PATH = PROJECT_PATH.joinpath('resources/packs')
 RESOURCES_EXISTING_SHEETS_PATH = PROJECT_PATH.joinpath('resources/existing_sheets')
 
 EXPORTS_PATH = PROJECT_PATH.joinpath('exports')
@@ -32,13 +32,6 @@ def main():
             print('Do not save any changes to this directory, it will be overwritten by the next operation!',
                   file=warning_file)
 
-    sheets = {}
-
-    with open(RESOURCES_XML_PATH, 'r') as reader:
-        root = xmltodict.parse(reader.read())['java']['object']['void'][0]['array']['void']
-        for child in root:
-            consume_sheet(child, sheets)
-
     existing_sheets = []
 
     if RESOURCES_EXISTING_SHEETS_PATH.exists():
@@ -46,6 +39,17 @@ def main():
             if sheet.is_dir():
                 continue
             existing_sheets.append(sheet.stem)
+
+    sheets = {}
+
+    for dir in RESOURCES_PACKS_PATH.iterdir():
+        if dir.is_dir():
+            for file in dir.iterdir():
+                if file.is_file() and str(file).endswith('.xml'):
+                    with open(file, 'r') as reader:
+                        root = xmltodict.parse(reader.read())['java']['object']['void'][0]['array']['void']
+                        for child in root:
+                            consume_sheet(file.stem, child, sheets)
 
     new_sheets = []
 
@@ -72,7 +76,7 @@ def main():
         for sheet in new_sheets:
             print('\t{}'.format(sheet))
 
-def consume_sheet(root, sheets):
+def consume_sheet(pack_name, root, sheets):
     root = root['object']['void']
 
     directory = None
@@ -88,7 +92,7 @@ def consume_sheet(root, sheets):
         elif property_name == 'frameEntries':
             frame_entries = property['array']['void']
 
-    root_asset_path = RESOURCES_PATH.joinpath(directory)
+    root_asset_path = RESOURCES_PACKS_PATH.joinpath(pack_name).joinpath(directory)
 
     for entry in frame_entries:
         asset = SheetEntry(entry['object']['void'], root_asset_path)
