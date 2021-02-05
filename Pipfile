@@ -6,8 +6,13 @@ name = "pypi"
 [packages]
 xmltodict = "*"
 click = "*"
+pillow = "*"
+black = "*"
 
 [dev-packages]
 
 [requires]
 python_version = "3.7"
+
+[pipenv]
+allow_prereleases = true
