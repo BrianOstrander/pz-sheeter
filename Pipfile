@@ -6,8 +6,6 @@ name = "pypi"
 [packages]
 xmltodict = "*"
 pillow = "*"
-black = "*"
-imagehash = "*"
 
 [dev-packages]
 

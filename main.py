@@ -2,8 +2,8 @@ import sys
 from pathlib import Path
 import xmltodict
 import time
-import imagehash
-from PIL import Image
+from shutil import copyfile
+from PIL import Image, ImageChops
 from math import isclose, ceil
 from sheet_entry import SheetEntry
 
@@ -13,7 +13,8 @@ RESOURCES_PACKS_PATH = PROJECT_PATH.joinpath('resources/packs')
 RESOURCES_EXISTING_SHEETS_PATH = PROJECT_PATH.joinpath('resources/existing_sheets')
 
 EXPORTS_PATH = PROJECT_PATH.joinpath('exports')
-EXPORTS_WARNING_PATH = EXPORTS_PATH.joinpath('__DO NOT SAVE HERE__.txt')
+EXPORTS_DIFFS_PATH = EXPORTS_PATH.joinpath('__diffs__')
+EXPORTS_WARNING_PATH = EXPORTS_PATH.joinpath('___DO NOT SAVE HERE___.txt')
 
 # {'property': 'booleanX'}
 # {'property': 'fileNameSize'}
@@ -30,6 +31,7 @@ def main(destructive=False):
             delete_directory(EXPORTS_PATH)
 
         EXPORTS_PATH.mkdir()
+        EXPORTS_DIFFS_PATH.mkdir()
 
     if not EXPORTS_WARNING_PATH.exists():
         with open(EXPORTS_WARNING_PATH, "w") as warning_file:
@@ -102,7 +104,6 @@ def main(destructive=False):
 
     next_bar = 0
     for existing_sheet in existing_sheets.keys():
-        # for existing_sheet in ['advertising_01']:
         if existing_sheet in sheets.keys():
             image_existing = Image.open(RESOURCES_EXISTING_SHEETS_PATH.joinpath('{}.png'.format(existing_sheet)))
             image_exported = Image.open(EXPORTS_PATH.joinpath('{}.png'.format(existing_sheet)))
@@ -124,9 +125,9 @@ def main(destructive=False):
 
                 sheet_size_changes[existing_sheet] = size
             else:
-                hash_existing = imagehash.average_hash(image_existing)
-                hash_exported = imagehash.average_hash(image_exported)
-                if hash_existing != hash_exported:
+                image_existing.convert('1')
+                image_exported.convert('1')
+                if ImageChops.difference(image_existing, image_exported).getbbox():
                     sheet_hash_changes.append(existing_sheet)
 
             image_existing.close()
@@ -144,10 +145,13 @@ def main(destructive=False):
 
     print('')
 
+    sheet_diffs = []
+
     if new_sheets:
         print('New Sheets: \t{}'.format(len(new_sheets)))
         for sheet in sorted(new_sheets, key=str.casefold):
             print('\t{}'.format(sheet))
+            sheet_diffs.append(sheet)
         print('')
 
     if missing_sheets:
@@ -177,6 +181,15 @@ def main(destructive=False):
         print('All Sheet Changes: \t{}'.format(len(all_sheet_changes)))
         for sheet in sorted(all_sheet_changes, key=str.casefold):
             print('\t{}'.format(sheet))
+            sheet_diffs.append(sheet)
+        print('')
+
+    if sheet_diffs:
+        print('All New and Changed Sheets: \t{}'.format(len(sheet_diffs)))
+        for sheet in sorted(sheet_diffs, key=str.casefold):
+            print('\t{}'.format(sheet))
+            copyfile(EXPORTS_PATH.joinpath('{}.png'.format(sheet)),
+                     EXPORTS_DIFFS_PATH.joinpath('{}.png'.format(sheet)))
         print('')
 
     time_total = time.time() - time_begin
@@ -303,4 +316,4 @@ def stitch_asset(source_path, export_path, count, cell_width, cell_height):
 
 if __name__ == '__main__':
     # Change this to True in order to rerun operation on unpacked files within resources folder.
-    main(False)
+    main(True)
