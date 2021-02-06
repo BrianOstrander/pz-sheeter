@@ -21,13 +21,14 @@ EXPORTS_WARNING_PATH = EXPORTS_PATH.joinpath('__DO NOT SAVE HERE__.txt')
 # {'property': 'frameEntries'}
 # {'property': 'numFrameEntries'}
 
-def main():
+def main(destructive=False):
     time_begin = time.time()
 
-    if EXPORTS_PATH.exists():
-        delete_directory(EXPORTS_PATH)
+    if destructive:
+        if EXPORTS_PATH.exists():
+            delete_directory(EXPORTS_PATH)
 
-    EXPORTS_PATH.mkdir()
+        EXPORTS_PATH.mkdir()
 
     if not EXPORTS_WARNING_PATH.exists():
         with open(EXPORTS_WARNING_PATH, "w") as warning_file:
@@ -40,7 +41,7 @@ def main():
         for sheet in RESOURCES_EXISTING_SHEETS_PATH.iterdir():
             if sheet.is_file() and str(sheet).endswith('.png'):
                 sheet_image = Image.open(sheet)
-                existing_sheets[sheet.stem] = int(sheet_image.height / 256)
+                existing_sheets[sheet.stem] = (int(sheet_image.width / 128), int(sheet_image.height / 256))
                 sheet_image.close()
 
     sheets = {}
@@ -67,13 +68,16 @@ def main():
 
     next_bar = 0
     for key, value in sheets.items():
+        width_minimum = 0
         height_minimum = 0
         if existing_sheets:
             if key in existing_sheets.keys():
-                height_minimum = existing_sheets[key]
+                width_minimum = existing_sheets[key][0]
+                height_minimum = existing_sheets[key][1]
             else:
                 new_sheets.append(key)
-        clone_sheet(key, value, height_minimum)
+        if destructive:
+            clone_sheet(key, value, width_minimum, height_minimum)
 
         if next_bar == 4:
             print('|', end='')
@@ -82,10 +86,52 @@ def main():
             print('.', end='')
             next_bar = next_bar + 1
 
+    print('')
+
+    missing_sheets = []
+    sheet_size_changes = {}
+
+    for existing_sheet in existing_sheets.keys():
+        if existing_sheet in sheets.keys():
+            image_existing = Image.open(RESOURCES_EXISTING_SHEETS_PATH.joinpath('{}.png'.format(existing_sheet)))
+            image_exported = Image.open(EXPORTS_PATH.joinpath('{}.png'.format(existing_sheet)))
+
+            if image_existing.width != image_exported.width or image_existing.height != image_exported.height:
+                width = int(image_exported.width - image_existing.width)
+                height = int(image_exported.height - image_existing.height)
+
+                sign_width = '+' if 0 < width else '-'
+                sign_height = '+' if 0 < height else '-'
+
+                size = ''
+                if width != 0 and height != 0:
+                    size = 'w {}{} , h {}{}'.format(sign_width, int(width / 128), sign_height, int(height / 256))
+                elif width != 0:
+                    size = 'w {}{}'.format(sign_width, int(width / 128))
+                elif height != 0:
+                    size = 'h {}{}'.format(sign_height, int(height / 256))
+
+                sheet_size_changes[existing_sheet] = size
+        else:
+            missing_sheets.append(existing_sheet)
+
     if new_sheets:
         print('New Sheets:')
         for sheet in new_sheets:
             print('\t{}'.format(sheet))
+        print('')
+
+    if missing_sheets:
+        print('Missing Sheets:')
+        for sheet in missing_sheets:
+            print('\t{}'.format(sheet))
+        print('')
+
+    if sheet_size_changes:
+        print('Sheet Size Changes:')
+        for sheet, size in sheet_size_changes.items():
+            print('{}\t:\t{}'.format(size, sheet))
+        print('')
 
     time_total = time.time() - time_begin
 
@@ -134,7 +180,7 @@ def delete_directory(target_path):
             sub.unlink()
     target_path.rmdir()
 
-def clone_sheet(sheet_name, entries, height_minimum, cleanup=True):
+def clone_sheet(sheet_name, entries, width_minimum, height_minimum, cleanup=True):
     sheet_path = EXPORTS_PATH.joinpath('{}.png'.format(sheet_name))
     sheet_assets_path = EXPORTS_PATH.joinpath(sheet_name)
     sheet_assets_path.mkdir()
@@ -151,7 +197,13 @@ def clone_sheet(sheet_name, entries, height_minimum, cleanup=True):
     for index in indices_skipped:
         clone_asset(sheet_assets_path.joinpath('{}.png'.format(index)), None)
 
+    cell_width = 1
     cell_height = 1
+
+    if width_minimum != 0:
+        cell_width = max(int(cell_width), width_minimum)
+    else:
+        cell_width = 8
 
     if 8 < index_last:
         if isclose(index_last % 8.0, 0.0):
@@ -159,9 +211,10 @@ def clone_sheet(sheet_name, entries, height_minimum, cleanup=True):
         else:
             cell_height = ceil(index_last / 8.0)
 
-    cell_height = max(int(cell_height), height_minimum)
+    if height_minimum != 0:
+        cell_height = max(int(cell_height), height_minimum)
 
-    stitch_asset(sheet_assets_path, sheet_path, index_last, cell_height)
+    stitch_asset(sheet_assets_path, sheet_path, index_last, int(cell_width), int(cell_height))
 
     if cleanup:
         delete_directory(sheet_assets_path)
@@ -179,15 +232,15 @@ def clone_asset(export_path, entry):
     result.save(export_path, 'PNG')
     result.close()
 
-def stitch_asset(source_path, export_path, count, cell_height):
+def stitch_asset(source_path, export_path, count, cell_width, cell_height):
 
-    sheet = Image.new('RGBA', (128 * 8, 256 * cell_height))
+    sheet = Image.new('RGBA', (128 * cell_width, 256 * cell_height))
 
     index = 0
     is_done = False
 
     for y in range(0, cell_height):
-        for x in range(0, 8):
+        for x in range(0, cell_width):
             source = Image.open(source_path.joinpath('{}.png'.format(index)))
             sheet.paste(source, (x * 128, y * 256))
             source.close()
@@ -203,4 +256,4 @@ def stitch_asset(source_path, export_path, count, cell_height):
     # print('source: {}, export: {}, count: {}, cell_height: {}'.format(source_path, export_path, count, cell_height))
 
 if __name__ == '__main__':
-    main()
+    main(False)
