@@ -13,7 +13,8 @@ RESOURCES_PACKS_PATH = PROJECT_PATH.joinpath('resources/packs')
 RESOURCES_EXISTING_SHEETS_PATH = PROJECT_PATH.joinpath('resources/existing_sheets')
 
 EXPORTS_PATH = PROJECT_PATH.joinpath('exports')
-EXPORTS_DIFFS_PATH = EXPORTS_PATH.joinpath('__diffs__')
+EXPORTS_DIFFS_NEW_PATH = EXPORTS_PATH.joinpath('__diffs new__')
+EXPORTS_DIFFS_CHANGED_PATH = EXPORTS_PATH.joinpath('__diffs changed__')
 EXPORTS_WARNING_PATH = EXPORTS_PATH.joinpath('___DO NOT SAVE HERE___.txt')
 
 # {'property': 'booleanX'}
@@ -31,7 +32,8 @@ def main(destructive=False):
             delete_directory(EXPORTS_PATH)
 
         EXPORTS_PATH.mkdir()
-        EXPORTS_DIFFS_PATH.mkdir()
+        EXPORTS_DIFFS_NEW_PATH.mkdir()
+        EXPORTS_DIFFS_CHANGED_PATH.mkdir()
 
     if not EXPORTS_WARNING_PATH.exists():
         with open(EXPORTS_WARNING_PATH, "w") as warning_file:
@@ -125,10 +127,13 @@ def main(destructive=False):
 
                 sheet_size_changes[existing_sheet] = size
             else:
-                image_existing.convert('1')
-                image_exported.convert('1')
-                if ImageChops.difference(image_existing, image_exported).getbbox():
+                alpha_existing = image_existing.split()[-1].convert('1')
+                alpha_exported = image_exported.split()[-1].convert('1')
+                image_difference = ImageChops.difference(alpha_existing, alpha_exported)
+                if image_difference.getbbox():
                     sheet_hash_changes.append(existing_sheet)
+                    image_difference.save(EXPORTS_DIFFS_CHANGED_PATH.joinpath('{}_diff.png'.format(existing_sheet)))
+                    image_difference.close()
 
             image_existing.close()
             image_exported.close()
@@ -152,6 +157,7 @@ def main(destructive=False):
         for sheet in sorted(new_sheets, key=str.casefold):
             print('\t{}'.format(sheet))
             sheet_diffs.append(sheet)
+            copyfile(EXPORTS_PATH.joinpath('{}.png'.format(sheet)), EXPORTS_DIFFS_NEW_PATH.joinpath('{}.png'.format(sheet)))
         print('')
 
     if missing_sheets:
@@ -182,14 +188,13 @@ def main(destructive=False):
         for sheet in sorted(all_sheet_changes, key=str.casefold):
             print('\t{}'.format(sheet))
             sheet_diffs.append(sheet)
+            copyfile(EXPORTS_PATH.joinpath('{}.png'.format(sheet)), EXPORTS_DIFFS_CHANGED_PATH.joinpath('{}.png'.format(sheet)))
         print('')
 
     if sheet_diffs:
         print('All New and Changed Sheets: \t{}'.format(len(sheet_diffs)))
         for sheet in sorted(sheet_diffs, key=str.casefold):
             print('\t{}'.format(sheet))
-            copyfile(EXPORTS_PATH.joinpath('{}.png'.format(sheet)),
-                     EXPORTS_DIFFS_PATH.joinpath('{}.png'.format(sheet)))
         print('')
 
     time_total = time.time() - time_begin
