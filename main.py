@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import xmltodict
 import time
+import imagehash
 from PIL import Image
 from math import isclose, ceil
 from sheet_entry import SheetEntry
@@ -90,8 +91,18 @@ def main(destructive=False):
 
     missing_sheets = []
     sheet_size_changes = {}
+    sheet_hash_changes = []
 
+    print('Hashing {} sheets'.format(len(existing_sheets)))
+
+    for i in range(0, len(existing_sheets)):
+        print('_', end='')
+
+    print('\n', end='')
+
+    next_bar = 0
     for existing_sheet in existing_sheets.keys():
+        # for existing_sheet in ['advertising_01']:
         if existing_sheet in sheets.keys():
             image_existing = Image.open(RESOURCES_EXISTING_SHEETS_PATH.joinpath('{}.png'.format(existing_sheet)))
             image_exported = Image.open(EXPORTS_PATH.joinpath('{}.png'.format(existing_sheet)))
@@ -112,25 +123,60 @@ def main(destructive=False):
                     size = 'h {}{}'.format(sign_height, int(height / 256))
 
                 sheet_size_changes[existing_sheet] = size
+            else:
+                hash_existing = imagehash.average_hash(image_existing)
+                hash_exported = imagehash.average_hash(image_exported)
+                if hash_existing != hash_exported:
+                    sheet_hash_changes.append(existing_sheet)
+
+            image_existing.close()
+            image_exported.close()
+
         else:
             missing_sheets.append(existing_sheet)
 
+        if next_bar == 4:
+            print('|', end='')
+            next_bar = 0
+        else:
+            print('.', end='')
+            next_bar = next_bar + 1
+
+    print('')
+
     if new_sheets:
-        print('New Sheets:')
-        for sheet in new_sheets:
+        print('New Sheets: \t{}'.format(len(new_sheets)))
+        for sheet in sorted(new_sheets, key=str.casefold):
             print('\t{}'.format(sheet))
         print('')
 
     if missing_sheets:
-        print('Missing Sheets:')
-        for sheet in missing_sheets:
+        print('Missing Sheets: \t{}'.format(len(missing_sheets)))
+        for sheet in sorted(missing_sheets, key=str.casefold):
             print('\t{}'.format(sheet))
         print('')
 
+    all_sheet_changes = []
+
     if sheet_size_changes:
-        print('Sheet Size Changes:')
-        for sheet, size in sheet_size_changes.items():
-            print('{}\t:\t{}'.format(size, sheet))
+        print('Sheet Size Changes: \t{}'.format(len(sheet_size_changes)))
+        for sheet in sorted(sheet_size_changes.keys(), key=str.casefold):
+            all_sheet_changes.append(sheet)
+            print('{}\t:\t{}'.format(sheet_size_changes[sheet], sheet))
+        print('')
+
+    if sheet_hash_changes:
+        print('Sheet Hash Changes: \t{}'.format(len(sheet_hash_changes)))
+        for sheet in sorted(sheet_hash_changes, key=str.casefold):
+            if sheet not in all_sheet_changes:
+                all_sheet_changes.append(sheet)
+            print('\t{}'.format(sheet))
+        print('')
+
+    if new_sheets:
+        print('All Sheet Changes: \t{}'.format(len(all_sheet_changes)))
+        for sheet in sorted(all_sheet_changes, key=str.casefold):
+            print('\t{}'.format(sheet))
         print('')
 
     time_total = time.time() - time_begin
@@ -256,4 +302,5 @@ def stitch_asset(source_path, export_path, count, cell_width, cell_height):
     # print('source: {}, export: {}, count: {}, cell_height: {}'.format(source_path, export_path, count, cell_height))
 
 if __name__ == '__main__':
+    # Change this to True in order to rerun operation on unpacked files within resources folder.
     main(False)
