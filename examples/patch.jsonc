@@ -1,0 +1,30 @@
+{
+    // This lets the patch system know what type of file this is.
+    "type": "patch",
+    // Each operation has one or more entries.
+    "entries": [
+        {
+            // The "replace" operation takes a tile from "resources/existing_sheets/<source>" and replaces the specified
+            // tiles in any sheets matching "exports/<source>"
+            "operation": "replace",
+            // Name of the sheet.
+            "source": "constructedobjects_01",
+            // Tile x and y indices, starting at zero.
+            "source_x": 6,
+            "source_y": 10,
+            // Tile width and height, in tiles.
+            "width": 1,
+            "height": 1
+        },
+        {
+            // The "delete" operation deletes all exported tile sheets with names matching the "targets" list.
+            "operation": "delete",
+            "targets": [
+                "blends_natural_01_TEST",
+                "blood_floor_large",
+                "blood_floor_med",
+                "blood_floor_small"
+            ]
+        }
+    ]
+}

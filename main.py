@@ -20,16 +20,15 @@ EXPORTS_DIFFS_CHANGED_PATH = EXPORTS_PATH.joinpath('__diffs changed__')
 EXPORTS_WARNING_PATH = EXPORTS_PATH.joinpath('___DO NOT SAVE HERE___.txt')
 
 
-def main(destructive=False):
+def main():
     time_begin = time.time()
 
-    if destructive:
-        if EXPORTS_PATH.exists():
-            delete_directory(EXPORTS_PATH)
+    if EXPORTS_PATH.exists():
+        delete_directory(EXPORTS_PATH)
 
-        EXPORTS_PATH.mkdir()
-        EXPORTS_DIFFS_NEW_PATH.mkdir()
-        EXPORTS_DIFFS_CHANGED_PATH.mkdir()
+    EXPORTS_PATH.mkdir()
+    EXPORTS_DIFFS_NEW_PATH.mkdir()
+    EXPORTS_DIFFS_CHANGED_PATH.mkdir()
 
     if not EXPORTS_WARNING_PATH.exists():
         with open(EXPORTS_WARNING_PATH, "w") as warning_file:
@@ -73,8 +72,7 @@ def main(destructive=False):
             if key in existing_sheets.keys():
                 width_minimum = existing_sheets[key][0]
                 height_minimum = existing_sheets[key][1]
-        if destructive:
-            clone_sheet(key, value, width_minimum, height_minimum)
+        clone_sheet(key, value, width_minimum, height_minimum)
 
         if next_bar == 4:
             print('|', end='')
@@ -411,5 +409,5 @@ def patch_delete(entry):
 
 if __name__ == '__main__':
     # Change this to True in order to rerun operation on unpacked files within resources folder.
-    main(True)
+    main()
 
