@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import xmltodict
 import time
+import json
 from shutil import copyfile
 from PIL import Image, ImageChops
 from math import isclose, ceil
@@ -9,20 +10,15 @@ from sheet_entry import SheetEntry
 
 PROJECT_PATH = Path(sys.path[0])
 RESOURCES_PATH = PROJECT_PATH.joinpath('resources')
-RESOURCES_PACKS_PATH = PROJECT_PATH.joinpath('resources/packs')
-RESOURCES_EXISTING_SHEETS_PATH = PROJECT_PATH.joinpath('resources/existing_sheets')
+RESOURCES_PACKS_PATH = RESOURCES_PATH.joinpath('packs')
+RESOURCES_EXISTING_SHEETS_PATH = RESOURCES_PATH.joinpath('existing_sheets')
+RESOURCES_PATCHES_PATH = RESOURCES_PATH.joinpath('patches')
 
 EXPORTS_PATH = PROJECT_PATH.joinpath('exports')
 EXPORTS_DIFFS_NEW_PATH = EXPORTS_PATH.joinpath('__diffs new__')
 EXPORTS_DIFFS_CHANGED_PATH = EXPORTS_PATH.joinpath('__diffs changed__')
 EXPORTS_WARNING_PATH = EXPORTS_PATH.joinpath('___DO NOT SAVE HERE___.txt')
 
-# {'property': 'booleanX'}
-# {'property': 'fileNameSize'}
-# {'property': 'filename'}
-# {'property': 'format'}
-# {'property': 'frameEntries'}
-# {'property': 'numFrameEntries'}
 
 def main(destructive=False):
     time_begin = time.time()
@@ -60,8 +56,6 @@ def main(destructive=False):
                         for child in root:
                             consume_sheet(file.stem, child, sheets)
 
-    new_sheets = []
-
     sheet_count = len(sheets.keys())
 
     print('Processing {} sheets'.format(sheet_count))
@@ -79,8 +73,6 @@ def main(destructive=False):
             if key in existing_sheets.keys():
                 width_minimum = existing_sheets[key][0]
                 height_minimum = existing_sheets[key][1]
-            else:
-                new_sheets.append(key)
         if destructive:
             clone_sheet(key, value, width_minimum, height_minimum)
 
@@ -93,9 +85,12 @@ def main(destructive=False):
 
     print('')
 
+    operations = patch()
+
     missing_sheets = []
     sheet_size_changes = {}
     sheet_hash_changes = []
+    sheet_hash_rejections = []
 
     print('Hashing {} sheets'.format(len(existing_sheets)))
 
@@ -130,10 +125,14 @@ def main(destructive=False):
                 alpha_existing = image_existing.split()[-1].convert('1')
                 alpha_exported = image_exported.split()[-1].convert('1')
                 image_difference = ImageChops.difference(alpha_existing, alpha_exported)
-                if image_difference.getbbox():
-                    sheet_hash_changes.append(existing_sheet)
-                    image_difference.save(EXPORTS_DIFFS_CHANGED_PATH.joinpath('{}_diff.png'.format(existing_sheet)))
-                    image_difference.close()
+                image_box = image_difference.getbbox()
+                if image_box:
+                    if 2 < (image_box[2] - image_box[0]) and 2 < (image_box[3] - image_box[1]):
+                        sheet_hash_changes.append(existing_sheet)
+                        image_difference.save(EXPORTS_DIFFS_CHANGED_PATH.joinpath('{}_diff.png'.format(existing_sheet)))
+                        image_difference.close()
+                    else:
+                        sheet_hash_rejections.append(existing_sheet)
 
             image_existing.close()
             image_exported.close()
@@ -148,7 +147,22 @@ def main(destructive=False):
             print('.', end='')
             next_bar = next_bar + 1
 
+    if operations:
+        print('')
+        for operation in sorted(operations.keys(), key=str.casefold):
+            print('')
+            print('Operation: {}'.format(operation))
+            for operation_entry in operations[operation]:
+                print('\t{}'.format(operation_entry))
+
     print('')
+
+    new_sheets = []
+
+    for file in EXPORTS_PATH.iterdir():
+        if file.is_file() and str(file).endswith('.png'):
+            if file.stem not in existing_sheets.keys():
+                new_sheets.append(file.stem)
 
     sheet_diffs = []
 
@@ -183,6 +197,12 @@ def main(destructive=False):
             print('\t{}'.format(sheet))
         print('')
 
+    if sheet_hash_rejections:
+        print('Sheet Hash Rejections: \t{}'.format(len(sheet_hash_rejections)))
+        for sheet in sorted(sheet_hash_rejections, key=str.casefold):
+            print('\t{}'.format(sheet))
+        print('')
+
     if new_sheets:
         print('All Sheet Changes: \t{}'.format(len(all_sheet_changes)))
         for sheet in sorted(all_sheet_changes, key=str.casefold):
@@ -205,6 +225,7 @@ def main(destructive=False):
         time_total = '{}:{} minutes'.format(int(time_total / 60), int(time_total % 60))
 
     print('\nDone! {} sheets stitched in {}'.format(sheet_count, time_total))
+
 
 def consume_sheet(pack_name, root, sheets):
     root = root['object']['void']
@@ -243,6 +264,7 @@ def delete_directory(target_path):
         else:
             sub.unlink()
     target_path.rmdir()
+
 
 def clone_sheet(sheet_name, entries, width_minimum, height_minimum, cleanup=True):
     sheet_path = EXPORTS_PATH.joinpath('{}.png'.format(sheet_name))
@@ -283,6 +305,7 @@ def clone_sheet(sheet_name, entries, width_minimum, height_minimum, cleanup=True
     if cleanup:
         delete_directory(sheet_assets_path)
 
+
 def clone_asset(export_path, entry):
     if entry is None and export_path.exists():
         return
@@ -295,6 +318,7 @@ def clone_asset(export_path, entry):
 
     result.save(export_path, 'PNG')
     result.close()
+
 
 def stitch_asset(source_path, export_path, count, cell_width, cell_height):
 
@@ -317,8 +341,75 @@ def stitch_asset(source_path, export_path, count, cell_width, cell_height):
 
     sheet.save(export_path, 'PNG')
     sheet.close()
-    # print('source: {}, export: {}, count: {}, cell_height: {}'.format(source_path, export_path, count, cell_height))
+
+
+def patch():
+
+    operations = {}
+
+    for file in RESOURCES_PATCHES_PATH.iterdir():
+        if file.is_file() and str(file).endswith('.json'):
+            with open(file) as file_json:
+                file_json_data = json.load(file_json)
+                if file_json_data.get('type') == 'patch':
+                    index = 0
+                    for entry in file_json_data['entries']:
+                        operation = entry['operation']
+
+                        if operation == 'replace':
+                            operation_results = patch_replace(entry)
+                        elif operation == 'delete':
+                            operation_results = patch_delete(entry)
+                        else:
+                            operation_results = ['[FAIL]\tUnrecognized operation \'{}\' for entry index {} in patch file {}'.format(operation, index, file)]
+                            operation = 'unknown'
+
+                        if not operations.get(operation):
+                            operations[operation] = []
+
+                        for operation_result in operation_results:
+                            operations[operation].append(operation_result)
+
+                        index = index + 1
+
+    return operations
+
+
+def patch_replace(entry):
+    try:
+        sheet_exported_path = EXPORTS_PATH.joinpath(entry['source'] + '.png')
+
+        sheet_existing = Image.open(RESOURCES_EXISTING_SHEETS_PATH.joinpath(entry['source'] + '.png'))
+        sheet_exported = Image.open(sheet_exported_path)
+
+        x = entry['source_x'] * 128
+        y = entry['source_y'] * 256
+
+        sheet_existing = sheet_existing.crop((x, y, x + (entry['width'] * 128), y + (entry['height'] * 256)))
+        sheet_exported.paste(sheet_existing, (x, y))
+        sheet_exported.save(sheet_exported_path)
+
+        sheet_existing.close()
+        sheet_exported.close()
+
+        return ['[PASS]\tSheet {} recieved replacement starting at cell coordinates ( {} , {} )'.format(entry['source'], entry['source_x'], entry['source_y'])]
+    except:
+        return ['[FAIL]\tSheet {} caused exception: {}'.format(sys.exc_info()[0])]
+
+
+def patch_delete(entry):
+    results = []
+    for target in entry['targets']:
+        try:
+            EXPORTS_PATH.joinpath(target + '.png').unlink()
+            results.append('[PASS]\tSheet {} deleted'.format(target))
+        except:
+            results.append('[FAIL]\tSheet {} caused exception: {}'.format(sys.exc_info()[0]))
+
+    return results
+
 
 if __name__ == '__main__':
     # Change this to True in order to rerun operation on unpacked files within resources folder.
     main(True)
+
